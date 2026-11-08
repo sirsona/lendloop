@@ -295,14 +295,4 @@ See [Security](docs/security.md) for the threat model and known gaps.
 - [Risk register](docs/risks.md)
 - [n8n setup](n8n/README.md)
 
-## Status
 
-Feature-complete through Phase 4:
-
-- Phase 0: product and security contracts
-- Phase 1: Next.js, Clerk, Convex foundation
-- Phase 2: listings and borrowing lifecycle
-- Phase 3: admin moderation and audit
-- Phase 4: signed n8n automation
-
-Phase 5 is submission polish. The overdue workflow should be run once against a real overdue loan before a live demo.

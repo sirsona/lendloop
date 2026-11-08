@@ -1,9 +1,10 @@
+import { PublicToolGrid } from "@/components/public-tool-grid";
 import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-16">
+    <main className="mx-auto max-w-3xl px-6 py-16">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
         LendLoop
       </p>
@@ -36,6 +37,18 @@ export default function HomePage() {
           <UserButton />
         </Show>
       </div>
+
+      <section className="mt-16">
+        <h2 className="text-xl font-semibold text-slate-900">
+          Available tools
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Public listings show only the tool and category.
+        </p>
+        <div className="mt-4">
+          <PublicToolGrid />
+        </div>
+      </section>
     </main>
   );
 }

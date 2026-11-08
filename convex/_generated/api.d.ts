@@ -8,7 +8,12 @@
  * @module
  */
 
+import type * as borrowRequests from "../borrowRequests.js";
+import type * as lib_audit from "../lib/audit.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_availability from "../lib/availability.js";
+import type * as lib_dates from "../lib/dates.js";
+import type * as tools from "../tools.js";
 import type * as users from "../users.js";
 
 import type {
@@ -18,7 +23,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  borrowRequests: typeof borrowRequests;
+  "lib/audit": typeof lib_audit;
   "lib/auth": typeof lib_auth;
+  "lib/availability": typeof lib_availability;
+  "lib/dates": typeof lib_dates;
+  tools: typeof tools;
   users: typeof users;
 }>;
 

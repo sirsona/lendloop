@@ -22,7 +22,13 @@ n8n/workflows/overdue-reminders.json
 n8n/workflows/error-handler.json
 ```
 
-Activate the request and overdue workflows. The request and overdue workflows already select `LendLoop — Error Handler` as their error workflow.
+Activate the request and overdue workflows. After import, set:
+
+```text
+Workflow Settings → Error Workflow → LendLoop — Error Handler
+```
+
+The workflow JSON intentionally does not contain a local error-workflow ID; IDs differ per n8n instance.
 
 ## Credentials
 
@@ -33,7 +39,7 @@ LendLoop Outbound HMAC  (id: lendloop-outbound)
 LendLoop Inbound HMAC   (id: lendloop-inbound)
 ```
 
-`n8n/import-credentials.sh` reads the secrets from `.env.n8n` and imports both credentials with those exact IDs.
+`n8n/import-credentials.sh` reads the secrets from `.env.n8n` and imports both credentials with those exact IDs. The IDs are stable so the workflows can reference them.
 
 ## Local URLs
 
@@ -57,6 +63,8 @@ http://host.docker.internal:3211
 - **Request Notification** — signed Convex → n8n webhook; verifies raw body; mock-sends.
 - **Overdue Reminders** — daily 09:00 Africa/Nairobi; signed GET, claim, mock send, complete.
 - **Error Handler** — n8n Error Trigger; sanitized signed report to Convex.
+
+The request and overdue workflows use n8n Crypto nodes with the imported credentials. The Code nodes only prepare canonical strings, build the HTTP bodies, and log the mock output.
 
 ## Test
 

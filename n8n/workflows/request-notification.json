@@ -172,8 +172,7 @@
   },
   "active": true,
   "settings": {
-    "executionOrder": "v1",
-    "errorWorkflow": "ev8zM1pHYtWUzYoR"
+    "executionOrder": "v1"
   },
   "versionId": "phase4-request-v2",
   "meta": {

@@ -530,8 +530,7 @@
   "active": true,
   "settings": {
     "executionOrder": "v1",
-    "timezone": "Africa/Nairobi",
-    "errorWorkflow": "ev8zM1pHYtWUzYoR"
+    "timezone": "Africa/Nairobi"
   },
   "versionId": "phase4-overdue-v2",
   "meta": {

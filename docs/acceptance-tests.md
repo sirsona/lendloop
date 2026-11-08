@@ -1,5 +1,22 @@
 # LendLoop — Acceptance Tests
 
+## Current verification
+
+Automated:
+
+- [x] `npx tsc --noEmit --incremental false` passes.
+- [x] 19 Vitest tests pass across auth, tools, requests, admin, and automation.
+- [x] Production build passes.
+- [x] Signed request webhook returns 200.
+- [x] Signed overdue GET, claim, and error endpoints return 200.
+- [x] Bad signature triggers the n8n error workflow and records `workflow_error`.
+
+Still manual:
+
+- [ ] Overdue reminder workflow against a real overdue loan.
+- [ ] Replace the mock email node with a real provider.
+- [ ] Production deployment hardening.
+
 ## Public and data minimization
 - [ ] Guest sees only `_id`, name, and category for available tools.
 - [ ] Guest cannot retrieve owner name/email, condition, description, availability dates, trusted status, or pending counts through the public query.

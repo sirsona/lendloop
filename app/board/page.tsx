@@ -288,6 +288,11 @@ export default function BoardPage() {
           LendLoop
         </Link>
         <div className="flex items-center gap-3">
+          {me.role === "admin" && (
+            <Link href="/admin" className="text-sm font-medium text-slate-600">
+              Admin
+            </Link>
+          )}
           <span className="hidden text-sm text-slate-500 sm:inline">
             {me.name}
           </span>

@@ -1,0 +1,541 @@
+{
+  "name": "LendLoop \u2014 Overdue Reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Daily 09:00 Nairobi",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ts = Date.now().toString();\nconst path = \"/api/automation/overdue\";\nreturn [{ json: { timestamp: ts, path, canonical: `${ts}.GET.${path}` } }];"
+      },
+      "id": "prepare-get",
+      "name": "Prepare GET",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "binaryData": false,
+        "type": "SHA256",
+        "value": "={{$json.canonical}}",
+        "dataPropertyName": "signature",
+        "encoding": "hex"
+      },
+      "id": "hmac-get",
+      "name": "HMAC GET",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "crypto": {
+          "id": "lendloop-inbound",
+          "name": "LendLoop Inbound HMAC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\n  url: `${$env.CONVEX_SITE_URL}${$json.path}`,\n  timestamp: $json.timestamp,\n  signature: `v1=${$json.signature}`,\n} }];"
+      },
+      "id": "build-get",
+      "name": "Build GET",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$json.url}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-lendloop-timestamp",
+              "value": "={{$json.timestamp}}"
+            },
+            {
+              "name": "x-lendloop-signature",
+              "value": "={{$json.signature}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-overdue",
+      "name": "Fetch overdue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "return ($json.loans || []).map((loan) => ({ json: loan }));"
+      },
+      "id": "expand-loans",
+      "name": "Expand loans",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ts = Date.now().toString();\nconst path = \"/api/automation/reminders/claim\";\nconst bodyString = JSON.stringify({\n  borrowRequestId: $json.borrowRequestId,\n  reminderKey: $json.reminderKey,\n  channel: \"email\",\n});\nreturn [{ json: {\n  ...$json,\n  bodyString,\n  timestamp: ts,\n  path,\n  canonical: `${ts}.POST.${path}.${bodyString}`,\n} }];"
+      },
+      "id": "prepare-claim",
+      "name": "Prepare claim",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "binaryData": false,
+        "type": "SHA256",
+        "value": "={{$json.canonical}}",
+        "dataPropertyName": "signature",
+        "encoding": "hex"
+      },
+      "id": "hmac-claim",
+      "name": "HMAC claim",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "credentials": {
+        "crypto": {
+          "id": "lendloop-inbound",
+          "name": "LendLoop Inbound HMAC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\n  ...$json,\n  claimUrl: `${$env.CONVEX_SITE_URL}${$json.path}`,\n  signature: `v1=${$json.signature}`,\n} }];"
+      },
+      "id": "build-claim",
+      "name": "Build claim",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.claimUrl}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-lendloop-timestamp",
+              "value": "={{$json.timestamp}}"
+            },
+            {
+              "name": "x-lendloop-signature",
+              "value": "={{$json.signature}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{$json.bodyString}}",
+        "options": {}
+      },
+      "id": "claim-reminder",
+      "name": "Claim reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "claimed",
+              "leftValue": "={{$json.status}}",
+              "rightValue": "claimed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-claimed",
+      "name": "Claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log(`[LendLoop] reminder sent for ${$json.borrowRequestId} attempt ${$json.attempt}`);\nreturn [{ json: { ...$json, providerMessageId: `mock-${Date.now()}` } }];"
+      },
+      "id": "mock-send",
+      "name": "Mock send",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ts = Date.now().toString();\nconst path = \"/api/automation/reminders/complete\";\nconst bodyString = JSON.stringify({\n  borrowRequestId: $json.borrowRequestId,\n  reminderKey: $json.reminderKey,\n  leaseToken: $json.leaseToken,\n  status: \"sent\",\n  providerMessageId: $json.providerMessageId,\n  sentAt: new Date().toISOString(),\n});\nreturn [{ json: {\n  ...$json,\n  bodyString,\n  timestamp: ts,\n  path,\n  canonical: `${ts}.POST.${path}.${bodyString}`,\n} }];"
+      },
+      "id": "prepare-complete",
+      "name": "Prepare complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "binaryData": false,
+        "type": "SHA256",
+        "value": "={{$json.canonical}}",
+        "dataPropertyName": "signature",
+        "encoding": "hex"
+      },
+      "id": "hmac-complete",
+      "name": "HMAC complete",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        -100
+      ],
+      "credentials": {
+        "crypto": {
+          "id": "lendloop-inbound",
+          "name": "LendLoop Inbound HMAC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\n  ...$json,\n  completeUrl: `${$env.CONVEX_SITE_URL}${$json.path}`,\n  signature: `v1=${$json.signature}`,\n} }];"
+      },
+      "id": "build-complete",
+      "name": "Build complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.completeUrl}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-lendloop-timestamp",
+              "value": "={{$json.timestamp}}"
+            },
+            {
+              "name": "x-lendloop-signature",
+              "value": "={{$json.signature}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{$json.bodyString}}",
+        "options": {}
+      },
+      "id": "complete-reminder",
+      "name": "Complete reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        -100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log(`[LendLoop] reminder skipped: ${$json.status}`);\nreturn [{ json: { skipped: true, status: $json.status } }];"
+      },
+      "id": "skip",
+      "name": "Skip",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 09:00 Nairobi": {
+      "main": [
+        [
+          {
+            "node": "Prepare GET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare GET": {
+      "main": [
+        [
+          {
+            "node": "HMAC GET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HMAC GET": {
+      "main": [
+        [
+          {
+            "node": "Build GET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build GET": {
+      "main": [
+        [
+          {
+            "node": "Fetch overdue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch overdue": {
+      "main": [
+        [
+          {
+            "node": "Expand loans",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand loans": {
+      "main": [
+        [
+          {
+            "node": "Prepare claim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare claim": {
+      "main": [
+        [
+          {
+            "node": "HMAC claim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HMAC claim": {
+      "main": [
+        [
+          {
+            "node": "Build claim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build claim": {
+      "main": [
+        [
+          {
+            "node": "Claim reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim reminder": {
+      "main": [
+        [
+          {
+            "node": "Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Mock send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock send": {
+      "main": [
+        [
+          {
+            "node": "Prepare complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare complete": {
+      "main": [
+        [
+          {
+            "node": "HMAC complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HMAC complete": {
+      "main": [
+        [
+          {
+            "node": "Build complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build complete": {
+      "main": [
+        [
+          {
+            "node": "Complete reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Nairobi",
+    "errorWorkflow": "ev8zM1pHYtWUzYoR"
+  },
+  "versionId": "phase4-overdue-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

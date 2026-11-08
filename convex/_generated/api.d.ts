@@ -10,7 +10,10 @@
 
 import type * as admin from "../admin.js";
 import type * as audit from "../audit.js";
+import type * as automation from "../automation.js";
+import type * as automationNode from "../automationNode.js";
 import type * as borrowRequests from "../borrowRequests.js";
+import type * as http from "../http.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_availability from "../lib/availability.js";
@@ -27,7 +30,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   audit: typeof audit;
+  automation: typeof automation;
+  automationNode: typeof automationNode;
   borrowRequests: typeof borrowRequests;
+  http: typeof http;
   "lib/audit": typeof lib_audit;
   "lib/auth": typeof lib_auth;
   "lib/availability": typeof lib_availability;

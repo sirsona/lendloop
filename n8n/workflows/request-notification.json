@@ -1,0 +1,183 @@
+{
+  "name": "LendLoop \u2014 Request Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "lendloop/request-notification",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "lendloop-request-notification"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawBody = (await this.helpers.getBinaryDataBuffer(0, \"data\")).toString(\"utf8\");\nconst headers = $json.headers || {};\nconst payload = JSON.parse(rawBody);\nreturn [{ json: { ...payload, rawBody, timestamp: headers[\"x-lendloop-timestamp\"] || \"\", receivedSignature: (headers[\"x-lendloop-signature\"] || \"\").replace(/^v1=/, \"\") } }];"
+      },
+      "id": "extract",
+      "name": "Extract signed body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "binaryData": false,
+        "type": "SHA256",
+        "value": "={{$json.timestamp}}.{{$json.rawBody}}",
+        "dataPropertyName": "expectedSignature",
+        "encoding": "hex"
+      },
+      "id": "hmac",
+      "name": "Compute HMAC",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "crypto": {
+          "id": "lendloop-outbound",
+          "name": "LendLoop Outbound HMAC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "match",
+              "leftValue": "={{$json.expectedSignature}}",
+              "rightValue": "={{$json.receivedSignature}}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-valid",
+      "name": "Signature valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $json;\nconst message = `[LendLoop] ${p.eventType} for ${p.toolName}: ${p.recipient.name} (${p.startDate} -> ${p.returnBy})`;\nconsole.log(message);\nreturn [{ json: { ok: true, eventId: p.eventId, message } }];"
+      },
+      "id": "notify",
+      "name": "Mock notify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "throw new Error(\"Invalid HMAC signature\");"
+      },
+      "id": "reject",
+      "name": "Reject signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract signed body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract signed body": {
+      "main": [
+        [
+          {
+            "node": "Compute HMAC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute HMAC": {
+      "main": [
+        [
+          {
+            "node": "Signature valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signature valid?": {
+      "main": [
+        [
+          {
+            "node": "Mock notify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "ev8zM1pHYtWUzYoR"
+  },
+  "versionId": "phase4-request-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

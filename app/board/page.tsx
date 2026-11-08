@@ -91,6 +91,11 @@ function RequestCard({
   onCancel: () => void;
   onReturn: () => void;
 }) {
+  const activity = useQuery(api.automation.listForLoan, {
+    borrowRequestId: request._id,
+  });
+  const latestActivity = activity?.[0];
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
       <div className="flex items-start justify-between gap-4">
@@ -116,6 +121,23 @@ function RequestCard({
       {request.message && (
         <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
           “{request.message}”
+        </p>
+      )}
+
+      {latestActivity && (
+        <p className="mt-3 text-xs text-slate-500">
+          {latestActivity.status === "failed"
+            ? "Automation failed"
+            : latestActivity.status === "skipped"
+              ? "Automation skipped"
+              : latestActivity.status === "processing"
+                ? "Automation processing"
+                : latestActivity.status === "pending"
+                  ? "Automation pending"
+                  : latestActivity.kind === "overdue_reminder"
+                    ? "Overdue reminder sent"
+                    : "Request notification sent"}{" "}
+          · {new Date(latestActivity.createdAt).toLocaleString()}
         </p>
       )}
 

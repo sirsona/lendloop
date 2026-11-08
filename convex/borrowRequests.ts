@@ -1,6 +1,8 @@
 import { ConvexError, v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { writeAudit } from "./lib/audit";
 import { requireUser } from "./lib/auth";
 import { isOverdue } from "./lib/availability";
@@ -10,6 +12,41 @@ import {
   rangesOverlap,
   validateBorrowWindow,
 } from "./lib/dates";
+
+
+async function queueRequestNotification(
+  ctx: MutationCtx,
+  borrowRequestId: Id<"borrowRequests">,
+  eventType: string,
+) {
+  const idempotencyKey = `request:${borrowRequestId}:${eventType}`;
+  const existing = await ctx.db
+    .query("automationEvents")
+    .withIndex("by_idempotency", (q) =>
+      q.eq("idempotencyKey", idempotencyKey),
+    )
+    .unique();
+
+  if (existing) return;
+
+  const now = Date.now();
+  const eventId = await ctx.db.insert("automationEvents", {
+    borrowRequestId,
+    kind: "request_notification",
+    status: "pending",
+    idempotencyKey,
+    eventType,
+    attempts: 0,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await ctx.scheduler.runAfter(
+    0,
+    internal.automationNode.sendRequestNotification,
+    { eventId },
+  );
+}
 
 function cleanMessage(message?: string) {
   if (!message) return undefined;
@@ -146,6 +183,8 @@ export const create = mutation({
       requestId,
     );
 
+    await queueRequestNotification(ctx, requestId, "request_created");
+
     return requestId;
   },
 });
@@ -274,6 +313,8 @@ export const approve = mutation({
       "borrowRequest",
       request._id,
     );
+
+    await queueRequestNotification(ctx, request._id, "request_approved");
   },
 });
 
@@ -304,6 +345,8 @@ export const decline = mutation({
       "borrowRequest",
       request._id,
     );
+
+    await queueRequestNotification(ctx, request._id, "request_declined");
   },
 });
 
@@ -333,6 +376,8 @@ export const cancel = mutation({
       "borrowRequest",
       request._id,
     );
+
+    await queueRequestNotification(ctx, request._id, "request_cancelled");
   },
 });
 
@@ -368,5 +413,7 @@ export const markReturned = mutation({
       "borrowRequest",
       request._id,
     );
+
+    await queueRequestNotification(ctx, request._id, "loan_returned");
   },
 });

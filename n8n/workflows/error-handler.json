@@ -1,0 +1,157 @@
+{
+  "name": "LendLoop \u2014 Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const workflow = $json.workflow?.name || \"unknown\";\nconst executionId = String($json.execution?.id || \"\");\nconst message = String($json.execution?.error?.message || \"Workflow failed\").slice(0, 300);\nconst occurredAt = new Date().toISOString();\nconsole.error(`[LendLoop] ${workflow} failed: ${message}`);\nconst ts = Date.now().toString();\nconst path = \"/api/automation/errors\";\nconst bodyString = JSON.stringify({ workflow, executionId, message, occurredAt });\nreturn [{ json: { bodyString, timestamp: ts, path, canonical: `${ts}.POST.${path}.${bodyString}` } }];"
+      },
+      "id": "format-error",
+      "name": "Format error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "binaryData": false,
+        "type": "SHA256",
+        "value": "={{$json.canonical}}",
+        "dataPropertyName": "signature",
+        "encoding": "hex"
+      },
+      "id": "hmac-error",
+      "name": "HMAC error",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "crypto": {
+          "id": "lendloop-inbound",
+          "name": "LendLoop Inbound HMAC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {\n  ...$json,\n  errorUrl: `${$env.CONVEX_SITE_URL}${$json.path}`,\n  signature: `v1=${$json.signature}`,\n} }];"
+      },
+      "id": "build-error",
+      "name": "Build error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$json.errorUrl}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-lendloop-timestamp",
+              "value": "={{$json.timestamp}}"
+            },
+            {
+              "name": "x-lendloop-signature",
+              "value": "={{$json.signature}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{$json.bodyString}}",
+        "options": {}
+      },
+      "id": "report-error",
+      "name": "Report error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format error": {
+      "main": [
+        [
+          {
+            "node": "HMAC error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HMAC error": {
+      "main": [
+        [
+          {
+            "node": "Build error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build error": {
+      "main": [
+        [
+          {
+            "node": "Report error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "phase4-error-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

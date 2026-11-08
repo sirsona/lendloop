@@ -25,3 +25,24 @@ LendLoop is a neighborhood tool-lending board. Neighbors list tools, request the
 - Overdue reminders use fetch → claim → send → complete with leases and idempotency keys.
 - Notifications are logged mocks for the demo; a real provider is optional.
 
+
+
+## Automation
+
+Phase 4 adds signed n8n automation:
+
+- request notifications on borrow-request transitions
+- daily overdue reminders with claim/lease/completion
+- signed error workflow reporting
+- automation activity on request cards
+
+Local setup:
+
+```bash
+cp .env.n8n.example .env.n8n
+# edit .env.n8n with generated secrets
+docker compose up -d
+bash n8n/import-credentials.sh
+```
+
+Import the workflows from `n8n/workflows/` into n8n and activate the request and overdue workflows. See [n8n/README.md](n8n/README.md) for details.

@@ -13,3 +13,5 @@ coverage/
 .convex/
 .DS_Store
 .phase0-backup/
+
+*.tsbuildinfo

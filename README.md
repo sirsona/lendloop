@@ -25,6 +25,3 @@ LendLoop is a neighborhood tool-lending board. Neighbors list tools, request the
 - Overdue reminders use fetch → claim → send → complete with leases and idempotency keys.
 - Notifications are logged mocks for the demo; a real provider is optional.
 
-## Next step
-
-Phase 1: Next.js, Clerk, and Convex scaffold; then schema, auth helpers, and RBAC tests.

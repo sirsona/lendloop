@@ -1,568 +1,169 @@
 "use client";
 
-import {
-  ListingForm,
-  type ListingDraft,
-} from "@/components/listing-form";
-import {
-  RequestForm,
-  type RequestDraft,
-} from "@/components/request-form";
-import { categoryLabel, conditionLabel } from "@/lib/tool-options";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
-import { UserButton } from "@clerk/nextjs";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { api } from "@/convex/_generated/api";
+import { PlusIcon, SearchIcon, WrenchIcon } from "@/components/icons";
+import { RequestDialog } from "@/components/request-dialog";
+import { ToolCard, type BoardTool } from "@/components/tool-card";
+import { buttonStyles } from "@/components/ui/button";
+import { EmptyState, Skeleton } from "@/components/ui/feedback";
+import { TOOL_CATEGORIES } from "@/lib/tool-options";
 
-type Tab = "browse" | "listings" | "requests" | "incoming";
-
-type BoardTool = {
-  _id: Id<"tools">;
-  name: string;
-  category: string;
-  condition: string;
-  description: string;
-  isRemoved: boolean;
-  ownerName: string;
-  ownerTrusted: boolean;
-  isMine: boolean;
-  status: "available" | "on_loan";
-  isOverdue: boolean;
-  pendingRequestCount: number;
-  upcomingReservation: { startDate: string; returnBy: string } | null;
-};
-
-type RequestItem = {
-  _id: Id<"borrowRequests">;
-  status: "pending" | "approved" | "declined" | "returned" | "cancelled";
-  startDate: string;
-  endDate: string;
-  returnBy: string;
-  message: string | null;
-  createdAt: number;
-  isOverdue: boolean;
-  tool: { name: string; category: string; isRemoved: boolean };
-  counterpartyName: string;
-};
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: "browse", label: "Browse" },
-  { id: "listings", label: "My listings" },
-  { id: "requests", label: "My requests" },
-  { id: "incoming", label: "Incoming requests" },
-];
-
-function StatusPill({ request }: { request: RequestItem }) {
-  const label = request.isOverdue ? "overdue" : request.status;
-  const styles =
-    label === "approved"
-      ? "bg-emerald-100 text-emerald-800"
-      : label === "pending"
-        ? "bg-amber-100 text-amber-800"
-        : label === "declined" || label === "cancelled"
-          ? "bg-slate-100 text-slate-600"
-          : label === "overdue"
-            ? "bg-red-100 text-red-800"
-            : "bg-slate-100 text-slate-600";
-
-  return (
-    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${styles}`}>
-      {label}
-    </span>
-  );
-}
-
-function RequestCard({
-  request,
-  side,
-  busy,
-  onApprove,
-  onDecline,
-  onCancel,
-  onReturn,
-}: {
-  request: RequestItem;
-  side: "borrower" | "lender";
-  busy: boolean;
-  onApprove: () => void;
-  onDecline: () => void;
-  onCancel: () => void;
-  onReturn: () => void;
-}) {
-  const activity = useQuery(api.automation.listForLoan, {
-    borrowRequestId: request._id,
-  });
-  const latestActivity = activity?.[0];
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="font-semibold">{request.tool.name}</p>
-          <p className="text-sm text-slate-500">
-            {categoryLabel(request.tool.category)} ·{" "}
-            {side === "borrower" ? "Lender" : "Borrower"}:{" "}
-            {request.counterpartyName}
-          </p>
-        </div>
-        <StatusPill request={request} />
-      </div>
-
-      <p className="mt-3 text-sm text-slate-600">
-        {request.startDate} → return by {request.returnBy}
-      </p>
-      {request.tool.isRemoved && (
-        <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-red-600">
-          Removed listing
-        </p>
-      )}
-      {request.message && (
-        <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-          “{request.message}”
-        </p>
-      )}
-
-      {latestActivity && (
-        <p className="mt-3 text-xs text-slate-500">
-          {latestActivity.status === "failed"
-            ? "Automation failed"
-            : latestActivity.status === "skipped"
-              ? "Automation skipped"
-              : latestActivity.status === "processing"
-                ? "Automation processing"
-                : latestActivity.status === "pending"
-                  ? "Automation pending"
-                  : latestActivity.kind === "overdue_reminder"
-                    ? "Overdue reminder sent"
-                    : "Request notification sent"}{" "}
-          · {new Date(latestActivity.createdAt).toLocaleString()}
-        </p>
-      )}
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {side === "lender" && request.status === "pending" && (
-          <>
-            <button
-              onClick={onApprove}
-              disabled={busy || request.isOverdue || request.tool.isRemoved}
-              className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              Approve
-            </button>
-            <button
-              onClick={onDecline}
-              disabled={busy}
-              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold"
-            >
-              Decline
-            </button>
-          </>
-        )}
-
-        {side === "lender" && request.status === "approved" && (
-          <button
-            onClick={onReturn}
-            disabled={busy}
-            className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            Mark returned
-          </button>
-        )}
-
-        {side === "borrower" && request.status === "pending" && (
-          <button
-            onClick={onCancel}
-            disabled={busy}
-            className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold"
-          >
-            Cancel request
-          </button>
-        )}
-
-        {side === "borrower" && request.status === "approved" && (
-          <button
-            onClick={onReturn}
-            disabled={busy}
-            className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            Mark returned
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ToolCard({
-  tool,
-  onRequest,
-}: {
-  tool: BoardTool;
-  onRequest: () => void;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-semibold">{tool.name}</p>
-          <p className="text-sm text-slate-500">
-            {categoryLabel(tool.category)} · {conditionLabel(tool.condition)}
-          </p>
-        </div>
-        <span
-          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-            tool.isOverdue
-              ? "bg-red-100 text-red-800"
-              : tool.status === "on_loan"
-                ? "bg-amber-100 text-amber-800"
-                : "bg-emerald-100 text-emerald-800"
-          }`}
-        >
-          {tool.isOverdue ? "overdue" : tool.status.replace("_", " ")}
-        </span>
-      </div>
-
-      <p className="mt-3 line-clamp-3 text-sm text-slate-600">
-        {tool.description}
-      </p>
-      <p className="mt-3 text-sm text-slate-600">
-        Owner: {tool.ownerName}
-        {tool.ownerTrusted ? " · Trusted lender" : ""}
-      </p>
-      {tool.pendingRequestCount > 0 && (
-        <p className="mt-1 text-xs font-medium text-amber-700">
-          {tool.pendingRequestCount} pending request
-          {tool.pendingRequestCount === 1 ? "" : "s"}
-        </p>
-      )}
-      {tool.upcomingReservation && (
-        <p className="mt-1 text-xs text-slate-500">
-          Reserved from {tool.upcomingReservation.startDate}; return by{" "}
-          {tool.upcomingReservation.returnBy}
-        </p>
-      )}
-
-      <button
-        onClick={onRequest}
-        disabled={tool.isMine || tool.isOverdue}
-        className="mt-4 rounded-full bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {tool.isMine ? "Your listing" : tool.isOverdue ? "Unavailable" : "Request"}
-      </button>
-    </div>
-  );
-}
-
-export default function BoardPage() {
-  const me = useQuery(api.users.me);
-  const authArgs = me ? {} : "skip";
-  const board = useQuery(api.tools.listBoard, authArgs);
-  const myTools = useQuery(api.tools.listMine, authArgs);
-  const myRequests = useQuery(api.borrowRequests.listMine, authArgs);
-  const incoming = useQuery(api.borrowRequests.listIncoming, authArgs);
-
-  const createTool = useMutation(api.tools.create);
-  const updateTool = useMutation(api.tools.update);
-  const removeTool = useMutation(api.tools.remove);
-  const createRequest = useMutation(api.borrowRequests.create);
-  const approve = useMutation(api.borrowRequests.approve);
-  const decline = useMutation(api.borrowRequests.decline);
-  const cancel = useMutation(api.borrowRequests.cancel);
-  const markReturned = useMutation(api.borrowRequests.markReturned);
-
-  const [tab, setTab] = useState<Tab>("browse");
+export default function BrowsePage() {
+  const tools = useQuery(api.tools.listBoard, {});
+  const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
-  const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<BoardTool | null>(null);
+  const [availableOnly, setAvailableOnly] = useState(false);
   const [requesting, setRequesting] = useState<BoardTool | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
 
-  async function run(action: () => Promise<unknown>) {
-    setBusy(true);
-    setError("");
-    try {
-      await action();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
 
-  if (me === undefined) {
-    return <p className="p-8">Loading…</p>;
-  }
-  if (me === null) {
-    return <p className="p-8">Setting up your account…</p>;
-  }
+    return (tools ?? []).filter((tool) => {
+      if (category !== "all" && tool.category !== category) return false;
+      if (availableOnly && (tool.status === "on_loan" || tool.isOverdue)) {
+        return false;
+      }
+      if (!needle) return true;
 
-  const filteredBoard = (board ?? []).filter(
-    (tool) => category === "all" || tool.category === category,
-  );
+      return [tool.name, tool.description, tool.ownerName].some((value) =>
+        value.toLowerCase().includes(needle),
+      );
+    });
+  }, [tools, query, category, availableOnly]);
+
+  const hasFilters = query !== "" || category !== "all" || availableOnly;
+
+  function clearFilters() {
+    setQuery("");
+    setCategory("all");
+    setAvailableOnly(false);
+  }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
-      <header className="flex items-center justify-between">
-        <Link href="/" className="text-sm font-semibold text-emerald-700">
-          LendLoop
-        </Link>
-        <div className="flex items-center gap-3">
-          {me.role === "admin" && (
-            <Link href="/admin" className="text-sm font-medium text-slate-600">
-              Admin
-            </Link>
-          )}
-          <span className="hidden text-sm text-slate-500 sm:inline">
-            {me.name}
-          </span>
-          <UserButton />
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-ink">Browse the board</h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            Everything neighbors are willing to lend. Request the days you need.
+          </p>
         </div>
+        <Link
+          href="/board/listings"
+          className={buttonStyles({ variant: "secondary" })}
+        >
+          <PlusIcon className="size-4" />
+          List a tool
+        </Link>
       </header>
 
-      <div className="mt-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            Your board
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Borrow tools from neighbors, or lend your own.
-          </p>
+      <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-3 shadow-card sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-ink-muted" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search tools, owners, descriptions"
+            aria-label="Search tools"
+            className="w-full rounded-xl border border-line-strong bg-paper py-2.5 pr-3 pl-10 text-sm text-ink transition-colors placeholder:text-ink-muted/80 focus:border-brand"
+          />
         </div>
-        <button
-          onClick={() => {
-            setCreating(true);
-            setEditing(null);
-            setTab("listings");
-          }}
-          className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"
+
+        <select
+          value={category}
+          onChange={(event) => setCategory(event.target.value)}
+          aria-label="Filter by category"
+          className="rounded-xl border border-line-strong bg-paper px-3 py-2.5 text-sm text-ink focus:border-brand"
         >
-          + List a tool
-        </button>
+          <option value="all">All categories</option>
+          {TOOL_CATEGORIES.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+
+        <label className="inline-flex items-center gap-2 px-1 text-sm font-medium text-ink-soft">
+          <input
+            type="checkbox"
+            checked={availableOnly}
+            onChange={(event) => setAvailableOnly(event.target.checked)}
+            className="size-4 accent-brand"
+          />
+          Available now
+        </label>
       </div>
 
-      {error && (
-        <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
-          {error}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-muted">
+          {tools === undefined
+            ? "Loading tools…"
+            : `${filtered.length} tool${filtered.length === 1 ? "" : "s"}${
+                hasFilters ? " match your filters" : " on the board"
+              }`}
         </p>
-      )}
-
-      <nav className="mt-8 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-        {TABS.map((item) => (
+        {hasFilters ? (
           <button
-            key={item.id}
-            onClick={() => setTab(item.id)}
-            className={`rounded-full px-4 py-2 text-sm font-semibold ${
-              tab === item.id
-                ? "bg-slate-900 text-white"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
+            type="button"
+            onClick={clearFilters}
+            className="text-sm font-semibold text-brand transition-colors hover:text-brand-dark"
           >
-            {item.label}
+            Clear filters
           </button>
-        ))}
-      </nav>
+        ) : null}
+      </div>
 
-      {tab === "browse" && (
-        <section className="mt-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-sm font-medium text-slate-600">
-              Category
-            </label>
-            <select
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="all">All categories</option>
-              <option value="power_tools">Power tools</option>
-              <option value="garden">Garden</option>
-              <option value="kitchen">Kitchen</option>
-              <option value="camping">Camping</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          {board === undefined && <p className="mt-6">Loading tools…</p>}
-          {board && filteredBoard.length === 0 && (
-            <p className="mt-6 text-slate-600">No tools match this category.</p>
-          )}
-
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredBoard.map((tool) => (
-              <ToolCard
-                key={tool._id}
-                tool={tool}
-                onRequest={() => setRequesting(tool)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {tab === "listings" && (
-        <section className="mt-6 space-y-5">
-          {(creating || editing) && (
-            <ListingForm
-              key={editing?._id ?? "new"}
-              initial={
-                editing
-                  ? {
-                      name: editing.name,
-                      category: editing.category as ListingDraft["category"],
-                      condition: editing.condition as ListingDraft["condition"],
-                      description: editing.description,
-                    }
-                  : undefined
-              }
-              busy={busy}
-              onSubmit={async (draft) => {
-                if (editing) {
-                  await updateTool({ toolId: editing._id, ...draft });
-                } else {
-                  await createTool(draft);
-                }
-                setCreating(false);
-                setEditing(null);
-              }}
-              onCancel={() => {
-                setCreating(false);
-                setEditing(null);
-              }}
-            />
-          )}
-
-          {myTools === undefined && <p>Loading your listings…</p>}
-          {myTools && myTools.length === 0 && !creating && (
-            <p className="text-slate-600">You have not listed a tool yet.</p>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {(myTools ?? []).map((tool) => (
-              <div
-                key={tool._id}
-                className="rounded-2xl border border-slate-200 bg-white p-5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{tool.name}</p>
-                    <p className="text-sm text-slate-500">
-                      {categoryLabel(tool.category)} ·{" "}
-                      {conditionLabel(tool.condition)}
-                    </p>
-                  </div>
-                  {tool.isRemoved && (
-                    <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">
-                      Removed
-                    </span>
-                  )}
-                </div>
-                <p className="mt-2 text-sm text-slate-500">
-                  {tool.pendingRequestCount} pending request
-                  {tool.pendingRequestCount === 1 ? "" : "s"}
-                </p>
-                {!tool.isRemoved && (
-                  <div className="mt-4 flex gap-2">
-                    <button
-                      onClick={() => {
-                        setEditing(tool);
-                        setCreating(false);
-                      }}
-                      className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() =>
-                        run(() => removeTool({ toolId: tool._id }))
-                      }
-                      disabled={busy}
-                      className="rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {tab === "requests" && (
-        <section className="mt-6 space-y-4">
-          {myRequests === undefined && <p>Loading your requests…</p>}
-          {myRequests && myRequests.length === 0 && (
-            <p className="text-slate-600">You have not requested a tool yet.</p>
-          )}
-          {(myRequests ?? []).map((request) => (
-            <RequestCard
-              key={request._id}
-              request={request}
-              side="borrower"
-              busy={busy}
-              onApprove={() => {}}
-              onDecline={() => {}}
-              onCancel={() =>
-                run(() => cancel({ requestId: request._id }))
-              }
-              onReturn={() =>
-                run(() => markReturned({ requestId: request._id }))
-              }
-            />
+      {tools === undefined ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Skeleton key={index} className="h-64" />
           ))}
-        </section>
-      )}
-
-      {tab === "incoming" && (
-        <section className="mt-6 space-y-4">
-          {incoming === undefined && <p>Loading incoming requests…</p>}
-          {incoming && incoming.length === 0 && (
-            <p className="text-slate-600">No one has requested your tools yet.</p>
-          )}
-          {(incoming ?? []).map((request) => (
-            <RequestCard
-              key={request._id}
-              request={request}
-              side="lender"
-              busy={busy}
-              onApprove={() =>
-                run(() => approve({ requestId: request._id }))
-              }
-              onDecline={() =>
-                run(() => decline({ requestId: request._id }))
-              }
-              onCancel={() => {}}
-              onReturn={() =>
-                run(() => markReturned({ requestId: request._id }))
-              }
-            />
-          ))}
-        </section>
-      )}
-
-      {requesting && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 p-4">
-          <div className="mx-auto mt-16 max-w-xl">
-            <RequestForm
-              toolName={requesting.name}
-              busy={busy}
-              onSubmit={async (draft: RequestDraft) => {
-                await createRequest({
-                  toolId: requesting._id,
-                  startDate: draft.startDate,
-                  returnBy: draft.returnBy,
-                  message: draft.message || undefined,
-                });
-                setRequesting(null);
-              }}
-              onCancel={() => setRequesting(null)}
-            />
-          </div>
         </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={<WrenchIcon className="size-5" />}
+          title={tools.length === 0 ? "The board is empty" : "No tools match"}
+          description={
+            tools.length === 0
+              ? "List the first tool and your neighbors will see it here."
+              : "Try a different search or category, or clear the filters."
+          }
+          action={
+            tools.length === 0 ? (
+              <Link href="/board/listings" className={buttonStyles()}>
+                List a tool
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className={buttonStyles({ variant: "secondary" })}
+              >
+                Clear filters
+              </button>
+            )
+          }
+        />
+      ) : (
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((tool) => (
+            <li key={tool._id}>
+              <ToolCard tool={tool} onRequest={() => setRequesting(tool)} />
+            </li>
+          ))}
+        </ul>
       )}
-    </main>
+
+      {requesting ? (
+        <RequestDialog
+          tool={requesting}
+          onClose={() => setRequesting(null)}
+        />
+      ) : null}
+    </div>
   );
 }

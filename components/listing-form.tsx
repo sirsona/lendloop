@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
+import { AlertIcon } from "@/components/icons";
+import { Button } from "@/components/ui/button";
+import { SelectField, TextField, TextareaField } from "@/components/ui/field";
 import {
   TOOL_CATEGORIES,
   TOOL_CONDITIONS,
   type ToolCategory,
   type ToolCondition,
 } from "@/lib/tool-options";
-import { useState } from "react";
 
 export type ListingDraft = {
   name: string;
@@ -24,103 +27,89 @@ const EMPTY: ListingDraft = {
 
 export function ListingForm({
   initial,
-  busy,
   onSubmit,
   onCancel,
 }: {
   initial?: ListingDraft;
-  busy: boolean;
   onSubmit: (draft: ListingDraft) => Promise<void>;
   onCancel: () => void;
 }) {
   const [draft, setDraft] = useState<ListingDraft>(initial ?? EMPTY);
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setPending(true);
 
     try {
-      await onSubmit(draft);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save tool.");
+      await onSubmit({
+        ...draft,
+        name: draft.name.trim(),
+        description: draft.description.trim(),
+      });
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not save the listing.",
+      );
+    } finally {
+      setPending(false);
     }
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5"
-    >
-      <div>
-        <h2 className="text-lg font-semibold">
-          {initial ? "Edit listing" : "List a tool"}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Only signed-in neighbors can see the full listing.
-        </p>
-      </div>
-
-      <label className="block text-sm font-medium">
-        Name
-        <input
-          required
-          minLength={2}
-          maxLength={80}
-          value={draft.name}
-          onChange={(event) =>
-            setDraft({ ...draft, name: event.target.value })
-          }
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          placeholder="Cordless drill"
-        />
-      </label>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <TextField
+        label="Tool name"
+        required
+        minLength={2}
+        maxLength={80}
+        value={draft.name}
+        onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+        placeholder="Cordless drill"
+        hint="2–80 characters."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm font-medium">
-          Category
-          <select
-            value={draft.category}
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                category: event.target.value as ToolCategory,
-              })
-            }
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          >
-            {TOOL_CATEGORIES.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SelectField
+          label="Category"
+          value={draft.category}
+          onChange={(event) =>
+            setDraft({
+              ...draft,
+              category: event.target.value as ToolCategory,
+            })
+          }
+        >
+          {TOOL_CATEGORIES.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </SelectField>
 
-        <label className="block text-sm font-medium">
-          Condition
-          <select
-            value={draft.condition}
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                condition: event.target.value as ToolCondition,
-              })
-            }
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          >
-            {TOOL_CONDITIONS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SelectField
+          label="Condition"
+          value={draft.condition}
+          onChange={(event) =>
+            setDraft({
+              ...draft,
+              condition: event.target.value as ToolCondition,
+            })
+          }
+        >
+          {TOOL_CONDITIONS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </SelectField>
       </div>
 
-      <label className="block text-sm font-medium">
-        Description
-        <textarea
+      <div>
+        <TextareaField
+          label="Description"
           required
           minLength={10}
           maxLength={600}
@@ -129,28 +118,31 @@ export function ListingForm({
           onChange={(event) =>
             setDraft({ ...draft, description: event.target.value })
           }
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
           placeholder="What should a neighbor know before borrowing?"
+          hint="10–600 characters. Only signed-in neighbors can read this."
         />
-      </label>
+        <p className="mt-1 text-right text-xs text-ink-muted tnum">
+          {draft.description.length}/600
+        </p>
+      </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error ? (
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border border-danger-line bg-danger-soft p-3 text-sm text-danger"
+        >
+          <AlertIcon className="mt-0.5 size-4 shrink-0" />
+          {error}
+        </p>
+      ) : null}
 
-      <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {busy ? "Saving…" : initial ? "Save changes" : "Publish listing"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold"
-        >
+      <div className="flex justify-end gap-2 border-t border-line pt-4">
+        <Button variant="secondary" onClick={onCancel} disabled={pending}>
           Cancel
-        </button>
+        </Button>
+        <Button type="submit" loading={pending}>
+          {initial ? "Save changes" : "Publish listing"}
+        </Button>
       </div>
     </form>
   );

@@ -214,14 +214,22 @@ Automation tests cover reminder claim, lease, completion, idempotency, and the r
 ```text
 app/
   page.tsx                 public availability
-  board/page.tsx           authenticated board
-  admin/page.tsx           admin moderation and audit
+  board/                   browse, listings, requests, incoming (routed tabs)
+  admin/                   loans, users, listings, audit (routed tabs)
   sign-in/ sign-up/        Clerk routes
 components/
-  listing-form.tsx
-  request-form.tsx
-  public-tool-grid.tsx
-  user-sync.tsx
+  ui/                      design-system primitives (button, badge, dialog, fields, toast, table)
+  icons.tsx                inline SVG icon set, no icon dependency
+  site-header.tsx          global header and sign-in entry point
+  board-shell.tsx          board section navigation
+  admin-shell.tsx          admin console navigation
+  public-tool-grid.tsx     public availability grid
+  tool-card.tsx            browse card with status and availability
+  request-card.tsx         loan and request card
+  request-form.tsx         availability calendar and date validation
+  request-dialog.tsx       request composer
+  listing-form.tsx         create and edit listing form
+  user-sync.tsx            Clerk to Convex user sync
 convex/
   schema.ts
   users.ts
@@ -293,6 +301,7 @@ See [Security](docs/security.md) for the threat model and known gaps.
 - [Automation contract](docs/automation-contract.md)
 - [Wireframes](docs/wireframes.md)
 - [Risk register](docs/risks.md)
+- [UI audit](docs/ui-audit.md)
 - [n8n setup](n8n/README.md)
 
 

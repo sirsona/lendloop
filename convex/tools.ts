@@ -79,6 +79,12 @@ function decorateTool(
 ) {
   const onLoan = approved.some((request) => isHeld(request, today));
   const overdue = approved.some((request) => isOverdue(request, today));
+  const availableFrom = approved
+    .filter((request) => isHeld(request, today))
+    .reduce(
+      (latest, request) => (request.endDate > latest ? request.endDate : latest),
+      today,
+    );
 
   const upcoming = approved
     .filter((request) => request.startDate > today)
@@ -98,6 +104,7 @@ function decorateTool(
       | "available"
       | "on_loan",
     isOverdue: overdue,
+    availableFrom,
     pendingRequestCount: pendingCount,
     upcomingReservation: upcoming
       ? {

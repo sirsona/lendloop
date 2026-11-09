@@ -417,3 +417,33 @@ export const markReturned = mutation({
     await queueRequestNotification(ctx, request._id, "loan_returned");
   },
 });
+
+/**
+ * Approved windows for one tool, as half-open [startDate, endDate) ranges.
+ * The request form uses this to show which days are already booked.
+ */
+export const listAvailability = query({
+  args: { toolId: v.id("tools") },
+  handler: async (ctx, args) => {
+    await requireUser(ctx);
+
+    const today = dateInNairobi();
+    const approved = await ctx.db
+      .query("borrowRequests")
+      .withIndex("by_tool_status", (q) =>
+        q.eq("toolId", args.toolId).eq("status", "approved"),
+      )
+      .take(200);
+
+    return {
+      today,
+      windows: approved
+        .filter((request) => request.endDate > today)
+        .map((request) => ({
+          startDate: request.startDate,
+          endDate: request.endDate,
+        }))
+        .sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    };
+  },
+});
